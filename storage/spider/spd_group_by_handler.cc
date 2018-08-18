@@ -1583,7 +1583,16 @@ group_by_handler *spider_create_group_by_handler(
   do {
     DBUG_PRINT("info",("spider from=%p", from));
     if (from->table->const_table)
-      continue;
+    {
+      /*
+        Query has been optimized to handle this constant table separately by
+        pre-reading the entire table.
+
+        We therefore cannot use a group-by handler because a group-by handler
+        must be able to execute the entire query.
+      */
+      DBUG_RETURN(NULL);
+    }
     if (from->table->part_info)
     {
       DBUG_PRINT("info",("spider partition handler"));
@@ -1610,15 +1619,6 @@ group_by_handler *spider_create_group_by_handler(
 
   table_idx = 0;
   from = query->from;
-  while (from && from->table->const_table)
-  {
-    from = from->next_local;
-  }
-  if (!from)
-  {
-    /* all tables are const_table */
-    DBUG_RETURN(NULL);
-  }
 #if defined(PARTITION_HAS_GET_CHILD_HANDLERS) && defined(PARTITION_HAS_GET_PART_SPEC)
   if (from->table->part_info)
   {
@@ -1648,8 +1648,6 @@ group_by_handler *spider_create_group_by_handler(
   }
   while ((from = from->next_local))
   {
-    if (from->table->const_table)
-      continue;
 #if defined(PARTITION_HAS_GET_CHILD_HANDLERS) && defined(PARTITION_HAS_GET_PART_SPEC)
     if (from->table->part_info)
     {
@@ -1686,8 +1684,6 @@ group_by_handler *spider_create_group_by_handler(
 
   from = query->from;
   do {
-    if (from->table->const_table)
-      continue;
 #if defined(PARTITION_HAS_GET_CHILD_HANDLERS) && defined(PARTITION_HAS_GET_PART_SPEC)
     if (from->table->part_info)
     {
@@ -1826,10 +1822,6 @@ group_by_handler *spider_create_group_by_handler(
   }
 
   from = query->from;
-  while (from->table->const_table)
-  {
-    from = from->next_local;
-  }
 #if defined(PARTITION_HAS_GET_CHILD_HANDLERS) && defined(PARTITION_HAS_GET_PART_SPEC)
   if (from->table->part_info)
   {
@@ -1914,8 +1906,6 @@ group_by_handler *spider_create_group_by_handler(
 
   while ((from = from->next_local))
   {
-    if (from->table->const_table)
-      continue;
     fields->clear_conn_holder_from_conn();
 
 #if defined(PARTITION_HAS_GET_CHILD_HANDLERS) && defined(PARTITION_HAS_GET_PART_SPEC)
