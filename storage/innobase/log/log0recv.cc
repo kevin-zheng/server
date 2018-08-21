@@ -400,7 +400,13 @@ fil_name_parse(
 			reinterpret_cast<char*>(ptr), len, space_id, true);
 		/* fall through */
 	case MLOG_FILE_CREATE2:
-		if (log_file_op) {
+		if (first_page_no) {
+			ut_ad(first_page_no
+			      == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
+			ut_ad(srv_is_undo_tablespace(space_id));
+			/* TODO: discard any logs for (space_id,first_page_no+)
+			before the current LSN */
+		} else if (log_file_op) {
 			log_file_op(space_id,
 				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
 				    ptr, len, NULL, 0);

@@ -1896,33 +1896,27 @@ trx_undo_free_prepared(
 bool
 trx_undo_truncate_tablespace(
 	undo::Truncate*	undo_trunc)
-
 {
-	bool	success = true;
 	ulint	space_id = undo_trunc->get_marked_space_id();
+	ut_a(srv_is_undo_tablespace(space_id));
 
-	/* Step-1: Truncate tablespace. */
-	success = fil_truncate_tablespace(
-		space_id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
+	/* Adjust the tablespace metadata. */
+	fil_space_t* space = fil_truncate_prepare(space_id);
 
-	if (!success) {
-		return(success);
+	if (!space) {
+		return false;
 	}
 
-	/* Step-2: Re-initialize tablespace header.
-	Avoid REDO logging as we don't want to apply the action if server
-	crashes. For fix-up we have UNDO-truncate-ddl-log. */
-	mtr_t		mtr;
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-	fsp_header_init(space_id, SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
-	mtr_commit(&mtr);
+	/* Undo tablespace always are a single file. */
+	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 
-	/* Step-3: Re-initialize rollback segment header that resides
-	in truncated tablespaced. */
-	mtr_start(&mtr);
-	mtr_set_log_mode(&mtr, MTR_LOG_NO_REDO);
-	mtr_x_lock(fil_space_get_latch(space_id, NULL), &mtr);
+	/* Re-initialize tablespace, in a single mini-transaction. */
+	mtr_t mtr;
+	const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
+	mtr.start();
+	mtr_x_lock(&space->latch, &mtr);
+	fil_truncate_log(space, size, &mtr);
+	fsp_header_init(space_id, size, &mtr);
 
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
 		trx_rsegf_t*	rseg_header;
@@ -1968,23 +1962,46 @@ trx_undo_truncate_tablespace(
 		UT_LIST_INIT(rseg->insert_undo_list, &trx_undo_t::undo_list);
 		UT_LIST_INIT(rseg->insert_undo_cached, &trx_undo_t::undo_list);
 
-		rseg->max_size = mtr_read_ulint(
-			rseg_header + TRX_RSEG_MAX_SIZE, MLOG_4BYTES, &mtr);
+		/* These were written by trx_rseg_header_create(). */
+		ut_ad(mach_read_from_4(rseg_header + TRX_RSEG_MAX_SIZE)
+		      == FIL_NULL);
+		ut_ad(!mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE));
+
+		rseg->max_size = ULINT_MAX;
 
 		/* Initialize the undo log lists according to the rseg header */
-		rseg->curr_size = mtr_read_ulint(
-			rseg_header + TRX_RSEG_HISTORY_SIZE, MLOG_4BYTES, &mtr)
-			+ 1;
-
-		ut_ad(rseg->curr_size == 1);
-
+		rseg->curr_size = 1;
 		rseg->trx_ref_count = 0;
 		rseg->last_page_no = FIL_NULL;
 		rseg->last_offset = 0;
 		rseg->last_trx_no = 0;
 		rseg->last_del_marks = FALSE;
 	}
-	mtr_commit(&mtr);
 
-	return(success);
+	fil_node_t* file = UT_LIST_GET_FIRST(space->chain);
+
+	/* The undo tablespace files are never closed. */
+	ut_ad(file->is_open());
+
+	mutex_enter(&fil_system->mutex);
+	space->size = file->size = size;
+	mutex_exit(&fil_system->mutex);
+
+	mtr.commit();
+
+	if (os_file_truncate(file->name, file->handle, 0)) {
+		os_file_set_size(file->name, file->handle,
+				 os_offset_t(size) << srv_page_size_shift, 0);
+	}
+
+	/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
+
+	mutex_enter(&fil_system->mutex);
+	ut_ad(space->stop_new_ops);
+	ut_ad(space->is_being_truncated);
+	space->stop_new_ops = false;
+	space->is_being_truncated = false;
+	mutex_exit(&fil_system->mutex);
+
+	return true;
 }

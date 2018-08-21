@@ -1,0 +1,1 @@
+gtid_ignore_duplicates : TRUNCATE mysql.gtid_slave_pos
