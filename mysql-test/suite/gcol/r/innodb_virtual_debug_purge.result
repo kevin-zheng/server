@@ -198,12 +198,11 @@ SET DEBUG_SYNC='now SIGNAL purge_start';
 disconnect prevent_purge;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR purge_start';
-InnoDB		1 transactions not purged
+InnoDB		0 transactions not purged
 SET GLOBAL debug_dbug=@old_dbug;
 connection truncate;
 disconnect truncate;
 connection default;
-InnoDB		0 transactions not purged
 DROP TABLE t1, t2;
 set debug_sync=reset;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
