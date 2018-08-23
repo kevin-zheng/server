@@ -361,7 +361,6 @@ retry_purge_sec:
 			goto retry_purge_sec;
 		}
 
-		node->table->release();
 		node->table = NULL;
 		sec_pcur = NULL;
 		return false;
