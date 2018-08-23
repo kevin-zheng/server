@@ -2246,13 +2246,14 @@ fil_op_write_log(
 	byte*		log_ptr;
 	ulint		len;
 
-	ut_ad(first_page_no == 0);
+	ut_ad(first_page_no == 0 || type == MLOG_FILE_CREATE2);
 	ut_ad(fsp_flags_is_valid(flags, space_id));
 
 	/* fil_name_parse() requires that there be at least one path
 	separator and that the file path end with ".ibd". */
 	ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
-	ut_ad(strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD) == 0);
+	ut_ad(first_page_no /* trimming an undo tablespace */
+	      || !strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
 	log_ptr = mlog_open(mtr, 11 + 4 + 2 + 1);
 

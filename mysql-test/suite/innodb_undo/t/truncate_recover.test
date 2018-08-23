@@ -15,12 +15,7 @@
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc
 
---disable_query_log
-# FIXME: The doublewrite buffer should not issue these warnings.
-# FIXME: Maybe buf_dblwr_process() should empty the buffer at the end?
-call mtr.add_suppression("InnoDB: A copy of page.*in the doublewrite buffer slot.*is not within space bounds");
-FLUSH TABLES;
---enable_query_log
+call mtr.add_suppression("InnoDB: The transaction log size is too large");
 
 --let $restart_parameters=--innodb-undo-logs=4 --innodb-undo-tablespaces=2 --innodb-undo-log-truncate=1 --innodb-max-undo-log-size=10485760 --innodb-purge-rseg-truncate-frequency=1 --innodb-fast-shutdown=0
 --source include/restart_mysqld.inc

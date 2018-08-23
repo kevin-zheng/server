@@ -1964,7 +1964,7 @@ trx_undo_truncate_tablespace(
 
 		/* These were written by trx_rseg_header_create(). */
 		ut_ad(mach_read_from_4(rseg_header + TRX_RSEG_MAX_SIZE)
-		      == FIL_NULL);
+		      == rseg->max_size);
 		ut_ad(!mach_read_from_4(rseg_header + TRX_RSEG_HISTORY_SIZE));
 
 		rseg->max_size = ULINT_MAX;
@@ -1988,11 +1988,12 @@ trx_undo_truncate_tablespace(
 	mutex_exit(&fil_system->mutex);
 
 	mtr.commit();
+	/* Write-ahead the redo log record. */
+	log_write_up_to(mtr.commit_lsn(), true);
 
-	if (os_file_truncate(file->name, file->handle, 0)) {
-		os_file_set_size(file->name, file->handle,
-				 os_offset_t(size) << srv_page_size_shift, 0);
-	}
+	/* Trim the file size. */
+	os_file_truncate(file->name, file->handle,
+			 os_offset_t(size) << srv_page_size_shift, true);
 
 	/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
 

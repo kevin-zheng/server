@@ -190,6 +190,51 @@ void (*log_file_op)(ulint space_id, const byte* flags,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
 
+/** Process a MLOG_CREATE2 record that indicates that a tablespace
+is being shrunk in size.
+@param[in]	space_id	tablespace identifier
+@param[in]	offset		trimmed size of the file, in pages
+@param[in]	lsn		log sequence number of the operation */
+static void recv_addr_trim(ulint space_id, ulint offset, lsn_t lsn)
+{
+	DBUG_ENTER("recv_addr_trim");
+	DBUG_LOG("ib_log",
+		 "discarding log beyond end of tablespace "
+		 << page_id_t(space_id, offset) << " before LSN " << lsn);
+	mutex_enter(&recv_sys->mutex);
+	for (ulint i = recv_sys->addr_hash->n_cells; i--; ) {
+		for (recv_addr_t* recv_addr = static_cast<recv_addr_t*>(
+			     HASH_GET_FIRST(recv_sys->addr_hash, i));
+		     recv_addr;
+		     recv_addr = static_cast<recv_addr_t*>(
+			     HASH_GET_NEXT(addr_hash, recv_addr))) {
+			if (recv_addr->space != space_id
+			    || recv_addr->page_no < offset) {
+				continue;
+			}
+
+			for (recv_t* recv = UT_LIST_GET_FIRST(
+				     recv_addr->rec_list);
+			     recv; ) {
+				recv_t* n = UT_LIST_GET_NEXT(rec_list, recv);
+				if (recv->start_lsn < lsn) {
+					DBUG_PRINT("ib_log",
+						   ("Discarding log for"
+						    " page %u:%u at " LSN_PF,
+						    recv_addr->space,
+						    recv_addr->page_no,
+						    recv->start_lsn));
+					UT_LIST_REMOVE(recv_addr->rec_list,
+						       recv);
+				}
+				recv = n;
+			}
+		}
+	}
+	mutex_exit(&recv_sys->mutex);
+	DBUG_VOID_RETURN;
+}
+
 /** Process a file name from a MLOG_FILE_* record.
 @param[in,out]	name		file name
 @param[in]	len		length of the file name
@@ -362,9 +407,8 @@ fil_name_parse(
 	user-created tablespaces. The name must be long enough
 	and end in .ibd. */
 	bool corrupt = is_predefined_tablespace(space_id)
-		|| first_page_no != 0 // TODO: multi-file user tablespaces
 		|| len < sizeof "/a.ibd\0"
-		|| memcmp(ptr + len - 5, DOT_IBD, 5) != 0
+		|| (!first_page_no != !memcmp(ptr + len - 5, DOT_IBD, 5))
 		|| memchr(ptr, OS_PATH_SEPARATOR, len) == NULL;
 
 	byte*	end_ptr	= ptr + len;
@@ -397,8 +441,20 @@ fil_name_parse(
 			ut_ad(first_page_no
 			      == SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
 			ut_ad(srv_is_undo_tablespace(space_id));
-			/* TODO: discard any logs for (space_id,first_page_no+)
-			before the current LSN */
+			recv_addr_trim(space_id, first_page_no,
+				       recv_sys->recovered_lsn);
+			if (!apply) {
+				break;
+			}
+
+			if (fil_space_t* space = fil_space_get(space_id)) {
+				ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+				fil_node_t* file = UT_LIST_GET_FIRST(
+					space->chain);
+				os_file_truncate(file->name, file->handle,
+						 os_offset_t(first_page_no)
+						 << srv_page_size_shift, true);
+			}
 		} else if (log_file_op) {
 			log_file_op(space_id,
 				    type == MLOG_FILE_CREATE2 ? ptr - 4 : NULL,
@@ -2034,7 +2090,10 @@ recv_read_in_area(
 
 			mutex_enter(&(recv_sys->mutex));
 
-			if (recv_addr->state == RECV_NOT_PROCESSED) {
+			if (recv_addr->state != RECV_NOT_PROCESSED) {
+			} else if (!UT_LIST_GET_FIRST(recv_addr->rec_list)) {
+				recv_addr->state = RECV_PROCESSED;
+			} else {
 				recv_addr->state = RECV_BEING_READ;
 
 				page_nos[n] = page_no;
