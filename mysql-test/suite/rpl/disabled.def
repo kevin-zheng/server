@@ -18,3 +18,5 @@ rpl_blackhole             : MDEV-11094
 rpl_row_mysqlbinlog       : MDEV-11095
 rpl_row_index_choice      : MDEV-11666
 rpl_parallel : TRUNCATE mysql.gtid_slave_pos
+rpl_parallel_optimistic : TRUNCATE mysql.gtid_slave_pos
+rpl.rpl_drop_db_fail : TRUNCATE mysql.gtid_slave_pos
