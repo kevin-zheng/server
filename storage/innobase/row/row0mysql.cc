@@ -3806,6 +3806,7 @@ row_drop_table_for_mysql(
 		}
 		trx->mod_tables.erase(table);
 		dict_table_remove_from_cache(table);
+		err = DB_SUCCESS;
 		goto funct_exit;
 	}
 
