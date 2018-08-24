@@ -14653,7 +14653,14 @@ bool eq_ranges_exceeds_limit(RANGE_SEQ_IF *seq, void *seq_init_param)
   range_seq_t seq_it;
   uint count = 0;
   PARAM *param= ((SEL_ARG_RANGE_SEQ*) seq_init_param)->param;
+#if 0
   uint limit= param->thd->variables.eq_range_index_dive_limit;
+#else
+  /* FIXME: multi_range_read_info_const() is not being called with
+     seq_init_param as the 3rd parameter, for example in
+     ha_partition::multi_range_read_info_const() */
+  uint limit= 0;
+#endif
 
   if (limit == 0)
   {
