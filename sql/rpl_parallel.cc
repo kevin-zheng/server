@@ -2,6 +2,7 @@
 #include "rpl_parallel.h"
 #include "slave.h"
 #include "rpl_mi.h"
+#include "sql_base.h"
 #include "sql_parse.h"
 #include "debug_sync.h"
 
@@ -1425,6 +1426,7 @@ handle_rpl_parallel_thread(void *arg)
 
   rpt->thd= NULL;
   mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+  close_thread_tables(thd);
 
   thd->clear_error();
   thd->catalog= 0;

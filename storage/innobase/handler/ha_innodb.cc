@@ -117,6 +117,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0xa.h"
 #include "ut0mem.h"
 #include "row0ext.h"
+#include <my_stacktrace.h>
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -6218,6 +6219,12 @@ no_such_table:
 		DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 	}
 
+	if (ib_table->id == 19) {
+		my_print_stacktrace(NULL, (ulong)my_thread_stack_size);
+		fprintf(stderr, "open %s by %lx\n", ib_table->name.m_name,
+			os_thread_get_curr_id());
+	}
+
 	uint n_fields = mysql_fields(table);
 	uint n_cols = dict_table_get_n_user_cols(ib_table)
 		+ dict_table_get_n_v_cols(ib_table)
@@ -6654,6 +6661,12 @@ ha_innobase::close()
 /*================*/
 {
 	DBUG_ENTER("ha_innobase::close");
+
+	if (m_prebuilt->table->id == 19) {
+		fprintf(stderr, "close %s by %lx\n",
+			m_prebuilt->table->name.m_name,
+			os_thread_get_curr_id());
+	}
 
 	row_prebuilt_free(m_prebuilt, FALSE);
 

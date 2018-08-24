@@ -542,10 +542,12 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
                        NULL, TL_WRITE);
+  fprintf(stderr, "gtid\n");
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;
   table= tlist.table;
+  fprintf(stderr, "gtid %p %p\n", table, table->file);
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
@@ -693,7 +695,9 @@ end:
 
       ha_rollback_trans(thd, FALSE);
     }
+    fprintf(stderr, "gtid close %p %p\n", table, table->file);
     close_thread_tables(thd);
+    close_mysql_tables(thd);
     if (in_transaction)
       thd->mdl_context.release_statement_locks();
     else

@@ -3186,7 +3186,7 @@ fil_wait_crypt_bg_threads(
 		dict_mutex_enter_for_mysql();
 		time_t now = time(0);
 
-		if (now >= last + 30) {
+		if (now >= last + 5) {
 			ib::warn()
 				<< "Waited " << now - start
 				<< " seconds for ref-count on table: "

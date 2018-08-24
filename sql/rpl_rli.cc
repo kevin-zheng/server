@@ -1544,10 +1544,12 @@ rpl_load_gtid_slave_state(THD *thd)
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
                        NULL, TL_READ);
+  fprintf(stderr, "load\n");
   if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
     goto end;
   table_opened= true;
   table= tlist.table;
+  fprintf(stderr, "load: %p %p\n", table, table->file);
 
   if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
@@ -1674,6 +1676,7 @@ end:
     ha_commit_trans(thd, FALSE);
     ha_commit_trans(thd, TRUE);
   }
+  fprintf(stderr, "load: %p %p %d\n", table, table->file, table_opened);
   if (table_opened)
   {
     close_thread_tables(thd);

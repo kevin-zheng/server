@@ -1504,7 +1504,10 @@ void
 dict_table_t::acquire()
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
-	my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	int32 n= my_atomic_add32_explicit(&n_ref_count, 1, MY_MEMORY_ORDER_RELAXED);
+	if (id == 19 || !strcmp(name.m_name, "mysql/gtid_slave_pos"))
+		fprintf(stderr, "++%d: %s," IB_ID_FMT ",%lx\n", n,
+			name.m_name, id, os_thread_get_curr_id());
 }
 
 /** Release the table handle.
@@ -1516,6 +1519,9 @@ dict_table_t::release()
 	int32 n = my_atomic_add32_explicit(
 			&n_ref_count, -1, MY_MEMORY_ORDER_RELAXED);
 	ut_ad(n > 0);
+	if (id == 19 || !strcmp(name.m_name, "mysql/gtid_slave_pos"))
+		fprintf(stderr, "%d--: %s," IB_ID_FMT ",%lx\n", n,
+			name.m_name, id, os_thread_get_curr_id());
 	return n == 1;
 }
 

@@ -3641,6 +3641,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
       GTID from this failed event group (MDEV-4906).
     */
     rgi->gtid_pending= false;
+    close_mysql_tables(thd);
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);

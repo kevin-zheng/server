@@ -23,3 +23,4 @@ rpl_drop_db_fail : TRUNCATE mysql.gtid_slave_pos
 rpl_slave_grp_exec : TRUNCATE mysql.gtid_slave_pos
 rpl_slave_load_in : TRUNCATE mysql.gtid_slave_pos
 rpl_multi_engine : TRUNCATE mysql.gtid_slave_pos
+rpl_temporary_error2 : TRUNCATE mysql.gtid_slave_pos
