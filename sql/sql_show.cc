@@ -2300,7 +2300,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       */
       packet->append(STRING_WITH_LEN("PRIMARY KEY"));
     }
-    else if (key_info->flags & HA_NOSAME)
+    else if (key_info->flags & HA_NOSAME || key_info->flags & HA_LONG_UNIQUE_HASH)
       packet->append(STRING_WITH_LEN("UNIQUE KEY "));
     else if (key_info->flags & HA_FULLTEXT)
       packet->append(STRING_WITH_LEN("FULLTEXT KEY "));
